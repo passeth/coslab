@@ -16,6 +16,89 @@
 
 ---
 
+## 🛠️ n8n Batch PDF 파싱 & Supabase 업데이트 워크플로우
+
+### 1. Dropbox 폴더 파일 리스트
+- Dropbox Node: 지정 폴더 내 모든 PDF 파일 리스트 가져오기
+
+### 2. 파일 다운로드
+- Dropbox Download Node: 각 파일을 임시 경로로 다운로드
+
+### 3. AI 모듈로 PDF 파싱
+- Function Node 또는 HTTP Request Node:
+  - Python/Node.js로 만든 AI 파싱 서버 호출 (예: FastAPI, Flask, Express, OpenAI API 등)
+  - PDF 파일을 base64 또는 바이너리로 전송
+  - 파싱 결과(JSON/CSV 등) 반환
+
+### 4. Supabase 테이블에 데이터 업데이트
+- HTTP Request Node (Supabase REST API 사용)
+  - 파싱 결과를 Supabase 테이블에 insert/upsert
+
+### 5. 파싱 실패 파일 관리
+- IF Node: 파싱 결과가 실패/에러일 경우 분기
+- Dropbox Move Node: 실패한 파일을 "/실패폴더"로 이동
+
+### 6. 로깅/알림(선택)
+- Slack/Email Node: 성공/실패 결과 알림
+
+---
+
+### 🗂️ 워크플로우 구조 예시
+
+```
+[Dropbox List Files]
+        ↓
+[For Each File]
+        ↓
+[Dropbox Download File]
+        ↓
+[AI 파싱 HTTP Request]
+        ↓
+[IF 파싱 성공?] ── No ──> [Dropbox Move to 실패폴더]
+        │
+       Yes
+        ↓
+[Supabase HTTP Request (Insert/Upsert)]
+        ↓
+[Slack/Email 알림 (선택)]
+```
+
+---
+
+### 📝 각 단계별 상세 설정 팁
+
+1. Dropbox List Files: 폴더 경로 지정, 파일 확장자 필터링(.pdf)
+2. Dropbox Download File: 각 파일의 경로로 다운로드
+3. AI 파싱 HTTP Request: AI 서버 엔드포인트 /parse-pdf, PDF 파일(base64), 파일명 등 전달, 파싱 결과(JSON)
+4. Supabase HTTP Request: Supabase REST API 엔드포인트, 인증(anon key), Body: 파싱 결과(JSON)
+5. IF/Move Node: 파싱 실패 시 Dropbox의 "실패폴더"로 파일 이동
+
+---
+
+### 🧩 AI 파싱 서버 예시 (Python FastAPI)
+
+```python
+from fastapi import FastAPI, File, UploadFile
+import pdfplumber, pandas as pd
+
+app = FastAPI()
+
+@app.post("/parse-pdf")
+async def parse_pdf(file: UploadFile = File(...)):
+    # PDF 파싱 로직
+    # 실패 시 {"success": False, "reason": "..."}
+    # 성공 시 {"success": True, "data": {...}}
+```
+
+---
+
+### 🚦 실행/운영 팁
+- n8n 워크플로우는 "수동 실행" 또는 "스케줄러"로 돌릴 수 있음
+- 파싱 실패 파일은 별도 폴더로 관리해 재처리/검수 가능
+- Supabase에 중복 데이터 방지 위해 upsert(중복시 갱신) 추천
+
+---
+
 ## 📈 문서 자동화 단계별 전략
 
 ### 🚀 1. MVP 단계
